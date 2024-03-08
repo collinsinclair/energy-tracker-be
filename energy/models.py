@@ -1,7 +1,7 @@
 from django.db import models
 
 
-class Food(models.Model):
+class Intake(models.Model):
     label = models.CharField(max_length=100)
     calories = models.IntegerField()
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -10,10 +10,10 @@ class Food(models.Model):
         return f"{self.label} ({self.calories} cal)"
 
     class Meta:
-        verbose_name_plural = "Foods"
+        verbose_name_plural = "Intakes"
 
 
-class CalorieExpenditure(models.Model):
+class Expenditure(models.Model):
     calories = models.IntegerField()
     date = models.DateField(unique=True)
 
@@ -22,7 +22,7 @@ class CalorieExpenditure(models.Model):
         return f"{formatted_date} - {self.calories} cal"
 
     class Meta:
-        verbose_name_plural = "Calorie Expenditures"
+        verbose_name_plural = "Expenditures"
 
 
 class Weight(models.Model):

@@ -1,7 +1,7 @@
 from django.contrib import admin
 
-from .models import CalorieExpenditure, Food, Weight
+from .models import Expenditure, Intake, Weight
 
-admin.site.register(Food)
-admin.site.register(CalorieExpenditure)
+admin.site.register(Intake)
+admin.site.register(Expenditure)
 admin.site.register(Weight)

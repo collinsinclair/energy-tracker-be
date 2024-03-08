@@ -1,17 +1,17 @@
 from rest_framework import serializers
 
-from .models import CalorieExpenditure, Food, Weight
+from .models import Expenditure, Intake, Weight
 
 
-class FoodSerializer(serializers.ModelSerializer):
+class IntakeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Food
+        model = Intake
         fields = "__all__"
 
 
-class CalorieExpenditureSerializer(serializers.ModelSerializer):
+class ExpenditureSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CalorieExpenditure
+        model = Expenditure
         fields = "__all__"
 
 

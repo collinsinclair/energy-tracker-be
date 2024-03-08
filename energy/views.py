@@ -1,17 +1,17 @@
 from rest_framework import viewsets
 
-from .models import CalorieExpenditure, Food, Weight
-from .serializers import CalorieExpenditureSerializer, FoodSerializer, WeightSerializer
+from .models import Expenditure, Intake, Weight
+from .serializers import ExpenditureSerializer, IntakeSerializer, WeightSerializer
 
 
-class FoodViewSet(viewsets.ModelViewSet):
-    queryset = Food.objects.all()
-    serializer_class = FoodSerializer
+class IntakeViewSet(viewsets.ModelViewSet):
+    queryset = Intake.objects.all()
+    serializer_class = IntakeSerializer
 
 
-class CalorieExpenditureViewSet(viewsets.ModelViewSet):
-    queryset = CalorieExpenditure.objects.all()
-    serializer_class = CalorieExpenditureSerializer
+class ExpenditureViewSet(viewsets.ModelViewSet):
+    queryset = Expenditure.objects.all()
+    serializer_class = ExpenditureSerializer
 
 
 class WeightViewSet(viewsets.ModelViewSet):
