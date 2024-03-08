@@ -107,15 +107,13 @@ class DailyBalanceView(APIView, DateRangeOperationsMixin):
 
 class DailyBalancesView(APIView, DateRangeOperationsMixin):
     def get(self, request):
-        # Ensure we're working with dates in the same format
         daily_intakes = (
             self.aggregate_daily_calories(Intake.objects.all())
             .annotate(date_only=TruncDay("date"))
             .order_by("date_only")
-        )  # Ensure this aligns with how you aggregate daily calories
-        # Since Expenditure uses a DateField, we can directly use 'date' for aggregation without modification
+        )
         daily_expenditures = (
-            Expenditure.objects.values("date")  # Direct grouping by 'date' field
+            Expenditure.objects.values("date")
             .annotate(total_expenditure=Sum("calories"))
             .order_by("date")
         )
@@ -124,9 +122,7 @@ class DailyBalancesView(APIView, DateRangeOperationsMixin):
         }
         balances_data = []
         for intake in daily_intakes:
-            date = intake[
-                "date"
-            ].date()  # Convert datetime to date to match Expenditure's date field
+            date = intake["date"].date()
             total_intake = intake["total_calories"]
             total_expenditure = expenditures_dict.get(date, 0)
             balance = total_intake - total_expenditure
