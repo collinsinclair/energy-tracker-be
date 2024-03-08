@@ -1,6 +1,7 @@
 import datetime
 
 from django.db.models import Sum
+from django.db.models.functions import TruncDay
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -36,6 +37,20 @@ class IntakeViewSet(viewsets.ModelViewSet):
             or 0
         )
         return Response({"date": date.isoformat(), "total_calories": sum_calories})
+
+    @action(detail=False, methods=["get"])
+    def daily_sums(self, request):
+        daily_calories = (
+            self.queryset.annotate(date=TruncDay("timestamp"))
+            .values("date")
+            .annotate(total_calories=Sum("calories"))
+            .order_by("date")
+        )
+        data = [
+            {"date": item["date"].isoformat(), "total_calories": item["total_calories"]}
+            for item in daily_calories
+        ]
+        return Response(data)
 
 
 class ExpenditureViewSet(viewsets.ModelViewSet):
