@@ -34,4 +34,3 @@ class Weight(models.Model):
 
     class Meta:
         verbose_name_plural = "Weights"
-
