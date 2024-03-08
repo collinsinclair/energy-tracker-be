@@ -37,6 +37,14 @@ class DateRangeOperationsMixin:
             or 0
         )
 
+    def aggregate_daily_calories(self, queryset):
+        return (
+            queryset.annotate(date=TruncDay("timestamp"))
+            .values("date")
+            .annotate(total_calories=Sum("calories"))
+            .order_by("date")
+        )
+
 
 class IntakeViewSet(viewsets.ModelViewSet, DateRangeOperationsMixin):
     queryset = Intake.objects.all()
@@ -56,12 +64,7 @@ class IntakeViewSet(viewsets.ModelViewSet, DateRangeOperationsMixin):
 
     @action(detail=False, methods=["get"])
     def daily_sums(self, request):
-        daily_calories = (
-            self.queryset.annotate(date=TruncDay("timestamp"))
-            .values("date")
-            .annotate(total_calories=Sum("calories"))
-            .order_by("date")
-        )
+        daily_calories = self.aggregate_daily_calories(self.queryset)
         data = [
             {"date": item["date"].isoformat(), "total_calories": item["total_calories"]}
             for item in daily_calories
@@ -91,7 +94,7 @@ class DailyBalanceView(APIView, DateRangeOperationsMixin):
         )
         expenditure_record = Expenditure.objects.filter(date=date).first()
         total_expenditure = expenditure_record.calories if expenditure_record else 0
-        balance = total_expenditure - total_intake
+        balance = total_intake - total_expenditure
         return Response(
             {
                 "date": date.isoformat(),
@@ -100,3 +103,39 @@ class DailyBalanceView(APIView, DateRangeOperationsMixin):
                 "balance": balance,
             }
         )
+
+
+class DailyBalancesView(APIView, DateRangeOperationsMixin):
+    def get(self, request):
+        # Ensure we're working with dates in the same format
+        daily_intakes = (
+            self.aggregate_daily_calories(Intake.objects.all())
+            .annotate(date_only=TruncDay("date"))
+            .order_by("date_only")
+        )  # Ensure this aligns with how you aggregate daily calories
+        # Since Expenditure uses a DateField, we can directly use 'date' for aggregation without modification
+        daily_expenditures = (
+            Expenditure.objects.values("date")  # Direct grouping by 'date' field
+            .annotate(total_expenditure=Sum("calories"))
+            .order_by("date")
+        )
+        expenditures_dict = {
+            item["date"]: item["total_expenditure"] for item in daily_expenditures
+        }
+        balances_data = []
+        for intake in daily_intakes:
+            date = intake[
+                "date"
+            ].date()  # Convert datetime to date to match Expenditure's date field
+            total_intake = intake["total_calories"]
+            total_expenditure = expenditures_dict.get(date, 0)
+            balance = total_intake - total_expenditure
+            balances_data.append(
+                {
+                    "date": date.isoformat(),
+                    "total_intake": total_intake,
+                    "total_expenditure": total_expenditure,
+                    "balance": balance,
+                }
+            )
+        return Response(balances_data)
