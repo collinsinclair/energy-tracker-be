@@ -9,53 +9,36 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Expenditure, Intake, Weight
-from .serializers import ExpenditureSerializer, IntakeSerializer, WeightSerializer
+from .models import Expenditure, Intake, Weight, UserProfile
+from .serializers import (
+    ExpenditureSerializer,
+    IntakeSerializer,
+    WeightSerializer,
+    UserProfileSerializer,
+)
 
 
 class DateRangeOperationsMixin:
     def get_date_from_request(self, request):
-        """
-        Extracts a date from the given request object's query parameters. If no date is provided,
-        it returns the current date. The function expects the date in the 'YYYY-MM-DD' format.
-
-        @param request: The HttpRequest object containing query parameters.
-        @return: A datetime.date object representing the extracted or current date.
-        @raise ValueError: If the date format is invalid or cannot be parsed.
-        """
         date_str = request.query_params.get("date", None)
         if date_str is None:
-            return timezone.now().date()
+            return timezone.localtime().date()
         else:
-            date = parse_date(date_str)
+            date = timezone.datetime.strptime(date_str, "%Y-%m-%d").date()
             if date is None:
                 raise ValueError("Invalid date format. Use YYYY-MM-DD.")
             return date
 
     def get_datetime_range_for_date(self, date):
-        """
-        Creates a datetime range for a given date, starting at the beginning of the day (00:00:00)
-        and ending at the end of the day (23:59:59.999999).
-
-        @param date: A datetime.date object for which the datetime range is needed.
-        @return: A tuple containing two datetime.datetime objects representing the start and end
-                 of the given date.
-        """
-        datetime_start = datetime.datetime.combine(date, datetime.time.min)
-        datetime_end = datetime.datetime.combine(date, datetime.time.max)
+        datetime_start = timezone.make_aware(
+            datetime.datetime.combine(date, datetime.time.min)
+        )
+        datetime_end = timezone.make_aware(
+            datetime.datetime.combine(date, datetime.time.max)
+        )
         return datetime_start, datetime_end
 
     def aggregate_calories_for_date_range(self, model, datetime_start, datetime_end):
-        """
-        Aggregates the sum of calories for a given model's objects that fall within a specific
-        datetime range.
-
-        @param model: The Django model class to query against.
-        @param datetime_start: A datetime.datetime object representing the start of the range.
-        @param datetime_end: A datetime.datetime object representing the end of the range.
-        @return: The sum of calories for objects within the specified datetime range.
-                 Returns 0 if no objects are found.
-        """
         return (
             model.objects.filter(
                 timestamp__range=(datetime_start, datetime_end)
@@ -64,14 +47,6 @@ class DateRangeOperationsMixin:
         )
 
     def aggregate_daily_calories(self, queryset):
-        """
-        Aggregates daily calories from a queryset, grouping the results by date and summing
-        the calories for each date.
-
-        @param queryset: A Django queryset of objects that have a 'timestamp' and 'calories' field.
-        @return: A QuerySet containing dictionaries with 'date' and 'total_calories' keys,
-                 representing the sum of calories for each day present in the input queryset.
-        """
         return (
             queryset.annotate(date=TruncDay("timestamp"))
             .values("date")
@@ -216,3 +191,39 @@ class DailyBalancesView(APIView, DateRangeOperationsMixin):
                 }
             )
         return Response(balances_data)
+
+
+class RemainingDailyCalories(APIView, DateRangeOperationsMixin):
+    def get(self, request):
+        """
+
+
+        @param request:
+        @return:
+        """
+
+        try:
+            date = self.get_date_from_request(request)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
+
+        datetime_start, datetime_end = self.get_datetime_range_for_date(date)
+
+        total_intake = self.aggregate_calories_for_date_range(
+            Intake, datetime_start, datetime_end
+        )
+
+        expenditure_record = Expenditure.objects.filter(date=date).first()
+        total_expenditure = expenditure_record.calories if expenditure_record else 0
+
+        user_profile = UserProfile.objects.first()
+        remaining_calories = (
+            total_expenditure + user_profile.goal_daily_calorie_delta - total_intake
+        )
+
+        return Response(
+            {
+                "date": date.isoformat(),
+                "remaining_calories": remaining_calories,
+            }
+        )

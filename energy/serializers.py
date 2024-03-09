@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Expenditure, Intake, Weight
+from .models import Expenditure, Intake, Weight, UserProfile
 
 
 class IntakeSerializer(serializers.ModelSerializer):
@@ -18,4 +18,10 @@ class ExpenditureSerializer(serializers.ModelSerializer):
 class WeightSerializer(serializers.ModelSerializer):
     class Meta:
         model = Weight
+        fields = "__all__"
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
         fields = "__all__"

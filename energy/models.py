@@ -7,6 +7,7 @@ from django.dispatch import receiver
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     goal_weight = models.IntegerField(default=-1)
+    goal_daily_calorie_delta = models.IntegerField(default=0)
 
     def __str__(self):
         return self.user.username
