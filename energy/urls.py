@@ -8,6 +8,7 @@ from .views import (
     IntakeViewSet,
     WeightViewSet,
     RemainingDailyCalories,
+    daily_summary,  # an api view
 )
 
 router = DefaultRouter()
@@ -25,4 +26,5 @@ urlpatterns = [
         RemainingDailyCalories.as_view(),
         name="remaining-daily-calories",
     ),
+    path("daily_summary/", daily_summary, name="daily-summary"),
 ]

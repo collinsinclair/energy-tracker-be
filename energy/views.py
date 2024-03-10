@@ -3,18 +3,16 @@ import datetime
 from django.db.models import Sum
 from django.db.models.functions import TruncDay
 from django.utils import timezone
-from django.utils.dateparse import parse_date
 from rest_framework import viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Expenditure, Intake, Weight, UserProfile
+from .models import Expenditure, Intake, UserProfile, Weight
 from .serializers import (
     ExpenditureSerializer,
     IntakeSerializer,
     WeightSerializer,
-    UserProfileSerializer,
 )
 
 
@@ -195,13 +193,6 @@ class DailyBalancesView(APIView, DateRangeOperationsMixin):
 
 class RemainingDailyCalories(APIView, DateRangeOperationsMixin):
     def get(self, request):
-        """
-
-
-        @param request:
-        @return:
-        """
-
         try:
             date = self.get_date_from_request(request)
         except ValueError as e:
@@ -225,5 +216,58 @@ class RemainingDailyCalories(APIView, DateRangeOperationsMixin):
             {
                 "date": date.isoformat(),
                 "remaining_calories": remaining_calories,
+                "goal_daily_calorie_delta": user_profile.goal_daily_calorie_delta,  # Added line
             }
         )
+
+
+@api_view(["GET"])
+def daily_summary(request):
+    """
+    Endpoint for retrieving a daily summary including total calories consumed,
+    total calorie expenditure, calorie goal, and remaining calories until goal
+    for a specified or current date.
+
+    @param request: The HttpRequest object containing an optional 'date' parameter.
+    @return: A Response object with the daily summary.
+    """
+    try:
+        date = request.query_params.get("date", None)
+        if date:
+            date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        else:
+            date = datetime.datetime.now().date()
+    except ValueError as e:
+        return Response({"error": "Invalid date format. Use 'YYYY-MM-DD'."}, status=400)
+
+    datetime_start, datetime_end = (
+        DateRangeOperationsMixin().get_datetime_range_for_date(date)
+    )
+
+    total_intake = DateRangeOperationsMixin().aggregate_calories_for_date_range(
+        Intake, datetime_start, datetime_end
+    )
+
+    expenditure_record = Expenditure.objects.filter(date=date).aggregate(
+        total_expenditure=Sum("calories")
+    )
+    total_expenditure = (
+        expenditure_record["total_expenditure"]
+        if expenditure_record["total_expenditure"]
+        else 0
+    )
+
+    user_profile = UserProfile.objects.first()
+    goal_daily_calorie_delta = user_profile.goal_daily_calorie_delta
+    calorie_goal = total_expenditure + goal_daily_calorie_delta
+    remaining_calories = calorie_goal - total_intake
+
+    summary_data = {
+        "date": date.isoformat(),
+        "total_calories_consumed": total_intake,
+        "total_expenditure": total_expenditure,
+        "calorie_goal": calorie_goal,
+        "remaining_calories_until_goal": remaining_calories,
+    }
+
+    return Response(summary_data)
