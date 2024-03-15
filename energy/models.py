@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 
 class UserProfile(models.Model):
@@ -47,7 +48,7 @@ class Expenditure(models.Model):
 
 class Weight(models.Model):
     weight = models.FloatField()
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(default=timezone.now)  # Updated line
 
     def __str__(self):
         return f"{self.weight} lbs"
