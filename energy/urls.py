@@ -7,7 +7,6 @@ from .views import (
     ExpenditureViewSet,
     IntakeViewSet,
     WeightViewSet,
-    RemainingDailyCalories,
     daily_summary,  # an api view
 )
 
@@ -21,10 +20,5 @@ urlpatterns = [
     path("", include(router.urls)),
     path("daily_balance/", DailyBalanceView.as_view(), name="daily-balance"),
     path("daily_balances/", DailyBalancesView.as_view(), name="daily-balances"),
-    path(
-        "remaining_daily_calories/",
-        RemainingDailyCalories.as_view(),
-        name="remaining-daily-calories",
-    ),
     path("daily_summary/", daily_summary, name="daily-summary"),
 ]
