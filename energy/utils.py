@@ -1,5 +1,6 @@
 # energy/utils.py
 import datetime
+from datetime import timedelta
 
 from django.apps import apps
 from django.db.models import Sum
@@ -57,74 +58,42 @@ class DateRangeOperationsMixin:
         return adjusted_goal
 
 
+date_range_ops = DateRangeOperationsMixin()
+
+
 def update_previous_day_surplus_calories(date):
-    from datetime import timedelta
-    from django.apps import apps
-
-    print(f"Starting update for date: {date}")
-
-    # Assuming DateRangeOperationsMixin is defined elsewhere and available
-    date_range_ops = DateRangeOperationsMixin()
-
-    # Models retrieval
     Intake = apps.get_model("energy", "Intake")
     Expenditure = apps.get_model("energy", "Expenditure")
     UserProfile = apps.get_model("energy", "UserProfile")
-    print("Models loaded successfully.")
-
-    # Calculate the date range for the previous day
-    previous_day = date - timedelta(days=1)
-    datetime_start, datetime_end = date_range_ops.get_datetime_range_for_date(
-        previous_day
+    three_days_prior = date - timedelta(days=3)
+    datetime_start, _ = date_range_ops.get_datetime_range_for_date(three_days_prior)
+    _, datetime_end = date_range_ops.get_datetime_range_for_date(
+        date - timedelta(days=1)
     )
-    print(
-        f"Previous day: {previous_day}, datetime range: {datetime_start} to {datetime_end}"
-    )
-
-    # Aggregate calories for the date range
     total_intake = date_range_ops.aggregate_calories_for_date_range(
         Intake, datetime_start, datetime_end
     )
-    print(f"Total intake: {total_intake}")
-
-    expenditure_record = Expenditure.objects.filter(date=previous_day).first()
-    total_expenditure = expenditure_record.calories if expenditure_record else 0
-    print(f"Total expenditure: {total_expenditure}")
-
-    # Retrieve the user profile and goal
+    total_expenditure = (
+        Expenditure.objects.filter(
+            date__range=[three_days_prior, date - timedelta(days=1)]
+        ).aggregate(Sum("calories"))["calories__sum"]
+        or 0
+    )
     user_profile = UserProfile.objects.first()
     goal_delta = user_profile.goal_daily_calorie_delta
-    print(f"User goal daily calorie delta: {goal_delta}")
-
-    # Calculate remaining calories considering the goal
-    remaining_calories = (
-        total_expenditure - total_intake
-    )  # Actual balance without considering the goal
-    print(f"Remaining calories (before goal consideration): {remaining_calories}")
-
-    if goal_delta < 0:  # Goal is a deficit
-        print("Goal is a deficit.")
-        # Correctly calculate the unmet deficit portion
-        unmet_deficit = abs(goal_delta) - remaining_calories
+    remaining_calories = total_expenditure - total_intake
+    daily_goal_delta = goal_delta * 3
+    if daily_goal_delta < 0:
+        unmet_deficit = abs(daily_goal_delta) - remaining_calories
         if unmet_deficit > 0:
             user_profile.previous_day_surplus_calories = unmet_deficit
-            print(
-                f"Unmet deficit portion correctly recorded: {user_profile.previous_day_surplus_calories}"
+        else:
+            user_profile.previous_day_surplus_calories = 0
+    else:
+        if remaining_calories < daily_goal_delta:
+            user_profile.previous_day_surplus_calories = (
+                daily_goal_delta - remaining_calories
             )
         else:
             user_profile.previous_day_surplus_calories = 0
-            print("No unmet deficit. previous_day_surplus_calories set to 0.")
-    else:  # Goal is a surplus
-        # If actual surplus is less than goal surplus, record the unmet portion
-        if remaining_calories < goal_delta:
-            user_profile.previous_day_surplus_calories = goal_delta - remaining_calories
-            print(
-                f"Unmet surplus portion recorded: {user_profile.previous_day_surplus_calories}"
-            )
-        else:
-            user_profile.previous_day_surplus_calories = 0
-            print("No unmet surplus. previous_day_surplus_calories set to 0.")
-
-    # Save the updated profile
     user_profile.save()
-    print("User profile updated and saved.")
