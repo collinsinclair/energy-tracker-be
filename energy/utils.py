@@ -53,7 +53,7 @@ class DateRangeOperationsMixin:
         adjusted_goal = (
             total_expenditure
             + user_profile.goal_daily_calorie_delta
-            - user_profile.previous_day_surplus_calories
+            - user_profile.adjustment
         )
         return adjusted_goal
 
@@ -61,12 +61,19 @@ class DateRangeOperationsMixin:
 date_range_ops = DateRangeOperationsMixin()
 
 
-def update_previous_day_surplus_calories(date):
+def update_remaining_calories_adjustment(date):
     Intake = apps.get_model("energy", "Intake")
     Expenditure = apps.get_model("energy", "Expenditure")
     UserProfile = apps.get_model("energy", "UserProfile")
-    three_days_prior = date - timedelta(days=3)
-    datetime_start, _ = date_range_ops.get_datetime_range_for_date(three_days_prior)
+    user_profile = UserProfile.objects.first()
+    goal_delta_per_day = user_profile.goal_daily_calorie_delta
+    first_intake_record = Intake.objects.order_by("timestamp").first()
+    start_date = (
+        first_intake_record.timestamp.date()
+        if first_intake_record
+        else date - timedelta(days=1)
+    )
+    datetime_start, _ = date_range_ops.get_datetime_range_for_date(start_date)
     _, datetime_end = date_range_ops.get_datetime_range_for_date(
         date - timedelta(days=1)
     )
@@ -75,25 +82,23 @@ def update_previous_day_surplus_calories(date):
     )
     total_expenditure = (
         Expenditure.objects.filter(
-            date__range=[three_days_prior, date - timedelta(days=1)]
+            date__range=[start_date, date - timedelta(days=1)]
         ).aggregate(Sum("calories"))["calories__sum"]
         or 0
     )
-    user_profile = UserProfile.objects.first()
-    goal_delta = user_profile.goal_daily_calorie_delta
-    remaining_calories = total_expenditure - total_intake
-    daily_goal_delta = goal_delta * 3
-    if daily_goal_delta < 0:
-        unmet_deficit = abs(daily_goal_delta) - remaining_calories
-        if unmet_deficit > 0:
-            user_profile.previous_day_surplus_calories = unmet_deficit
+    net_calorie_delta = total_expenditure - total_intake
+    num_days = (date - timedelta(days=1) - start_date).days
+    goal_calorie_total = goal_delta_per_day * num_days
+    if goal_delta_per_day < 0:  # Goal is a deficit
+        if net_calorie_delta > abs(goal_calorie_total):
+            user_profile.adjustment = 0
         else:
-            user_profile.previous_day_surplus_calories = 0
+            difference = abs(goal_calorie_total) - net_calorie_delta
+            user_profile.adjustment = difference
     else:
-        if remaining_calories < daily_goal_delta:
-            user_profile.previous_day_surplus_calories = (
-                daily_goal_delta - remaining_calories
-            )
+        if net_calorie_delta < goal_calorie_total:
+            difference = goal_calorie_total - net_calorie_delta
+            user_profile.adjustment = difference
         else:
-            user_profile.previous_day_surplus_calories = 0
+            user_profile.adjustment = 0
     user_profile.save()

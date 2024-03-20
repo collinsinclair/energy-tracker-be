@@ -142,10 +142,10 @@ def daily_summary(request):
     total_expenditure = Expenditure.objects.filter(date=date).first().calories
     user_profile = UserProfile.objects.first()
     initial_goal = user_profile.goal_daily_calorie_delta
-    previous_day_calorie_surplus = user_profile.previous_day_surplus_calories
+    adjustment = user_profile.adjustment
 
     # do calculations
-    adjusted_goal = initial_goal - previous_day_calorie_surplus
+    adjusted_goal = initial_goal - adjustment
     remaining_calories = total_expenditure + adjusted_goal - total_intake
 
     summary_data = {
@@ -153,7 +153,7 @@ def daily_summary(request):
         "total_intake": total_intake,
         "total_expenditure": total_expenditure,
         "initial_goal": initial_goal,
-        "previous_day_calorie_surplus": previous_day_calorie_surplus,
+        "adjustment": adjustment,
         "adjusted_goal": adjusted_goal,
         "remaining_calories": remaining_calories,
     }
