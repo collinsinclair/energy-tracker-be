@@ -61,44 +61,45 @@ class DateRangeOperationsMixin:
 date_range_ops = DateRangeOperationsMixin()
 
 
-def update_remaining_calories_adjustment(date):
+def update_remaining_calories_adjustment(date_input):
+    if not isinstance(date_input, datetime.datetime):
+        date_input = datetime.datetime.combine(date_input, datetime.datetime.min.time())
+    if timezone.is_naive(date_input):
+        date_input = timezone.make_aware(date_input, timezone.get_default_timezone())
     Intake = apps.get_model("energy", "Intake")
     Expenditure = apps.get_model("energy", "Expenditure")
     UserProfile = apps.get_model("energy", "UserProfile")
     user_profile = UserProfile.objects.first()
     goal_delta_per_day = user_profile.goal_daily_calorie_delta
-    first_intake_record = Intake.objects.order_by("timestamp").first()
-    start_date = (
-        first_intake_record.timestamp.date()
-        if first_intake_record
-        else date - timedelta(days=1)
+    earliest_intake_record = Intake.objects.order_by("timestamp").first()
+    earliest_expenditure_record = Expenditure.objects.order_by("date").first()
+    if earliest_intake_record and earliest_expenditure_record:
+        earliest_date = min(
+            earliest_intake_record.timestamp.date(),
+            earliest_expenditure_record.date
+        )
+    else:
+        earliest_date = date_input.date() - datetime.timedelta(days=1)
+    start_date = timezone.make_aware(
+        datetime.datetime.combine(earliest_date, datetime.datetime.min.time()),
+        timezone.get_default_timezone()
     )
     datetime_start, _ = date_range_ops.get_datetime_range_for_date(start_date)
     _, datetime_end = date_range_ops.get_datetime_range_for_date(
-        date - timedelta(days=1)
+        date_input - datetime.timedelta(days=1)
     )
     total_intake = date_range_ops.aggregate_calories_for_date_range(
         Intake, datetime_start, datetime_end
     )
     total_expenditure = (
-        Expenditure.objects.filter(
-            date__range=[start_date, date - timedelta(days=1)]
-        ).aggregate(Sum("calories"))["calories__sum"]
-        or 0
+            Expenditure.objects.filter(
+                date__range=[start_date, date_input - datetime.timedelta(days=1)]
+            ).aggregate(Sum("calories"))["calories__sum"]
+            or 0
     )
     net_calorie_delta = total_expenditure - total_intake
-    num_days = (date - timedelta(days=1) - start_date).days
+    num_days = (date_input.date() - start_date.date()).days  # Add 1 to include end date
     goal_calorie_total = goal_delta_per_day * num_days
-    if goal_delta_per_day < 0:  # Goal is a deficit
-        if net_calorie_delta > abs(goal_calorie_total):
-            user_profile.adjustment = 0
-        else:
-            difference = abs(goal_calorie_total) - net_calorie_delta
-            user_profile.adjustment = difference
-    else:
-        if net_calorie_delta < goal_calorie_total:
-            difference = goal_calorie_total - net_calorie_delta
-            user_profile.adjustment = difference
-        else:
-            user_profile.adjustment = 0
+    adjustment_needed = abs(goal_calorie_total) - net_calorie_delta
+    user_profile.adjustment = adjustment_needed
     user_profile.save()
