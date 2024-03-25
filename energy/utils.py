@@ -98,7 +98,7 @@ def update_remaining_calories_adjustment(date_input):
             or 0
     )
     net_calorie_delta = total_expenditure - total_intake
-    num_days = (date_input.date() - start_date.date()).days  # Add 1 to include end date
+    num_days = (date_input.date() - start_date.date()).days
     goal_calorie_total = goal_delta_per_day * num_days
     adjustment_needed = abs(goal_calorie_total) - net_calorie_delta
     user_profile.adjustment = adjustment_needed
